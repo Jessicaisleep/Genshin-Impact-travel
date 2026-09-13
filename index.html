@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>纳西妲的旅行</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  这个文件只做一件事：跳转到「开始游戏.html」。
+
+  为什么要它：
+    · GitHub Pages、大多数静态托管、以及很多人的直觉，默认找的都是 index.html
+    · 但游戏本体放在「开始游戏.html」里，双击更直观
+    · 所以这里做一次瞬间跳转，游戏本体只有一份，不会出现两个文件内容不一致
+
+  直接双击「开始游戏.html」也一样能玩，不需要经过这里。
+-->
+<script>
+(function () {
+  // 保留 ?selftest=1 之类的参数，跳转后照样能用
+  location.replace('开始游戏.html' + location.search + location.hash);
+})();
+</script>
+<style>
+  html,body{margin:0;height:100%;background:#0f0e0c;color:#cfc7b6;
+            font:15px/1.65 system-ui,"Microsoft YaHei",sans-serif;
+            display:flex;align-items:center;justify-content:center}
+  .box{text-align:center}
+  a{color:#8ec96a}
+</style>
+</head>
+<body>
+<div class="box">
+  <p>正在进入……</p>
+  <p>如果没有自动跳转，<a href="开始游戏.html">点这里</a>。</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,120 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>生成图标</title>
+<style>
+  html,body{margin:0;padding:0;background:#000;overflow:hidden}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="../src/core/util.js"></script>
+<script src="../src/core/rng.js"></script>
+<script src="../assets/manifest.js"></script>
+<script src="../src/assets.js"></script>
+<script>
+(function () {
+  var Q = new URLSearchParams(location.search);
+  var size = parseInt(Q.get('size') || '512', 10);
+  var c = document.getElementById('c');
+  c.width = size; c.height = size;
+  c.style.width = size + 'px';
+  c.style.height = size + 'px';
+
+  function draw() {
+    var ctx = c.getContext('2d');
+    var k = size / 512;
+
+    // 圆角方形底 + 绿色渐变（须弥草元素的色调）
+    var r = size * 0.22;
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) { ctx.roundRect(0, 0, size, size, r); }
+    else {
+      ctx.moveTo(r, 0); ctx.arcTo(size, 0, size, size, r);
+      ctx.arcTo(size, size, 0, size, r); ctx.arcTo(0, size, 0, 0, r);
+      ctx.arcTo(0, 0, size, 0, r); ctx.closePath();
+    }
+    ctx.clip();
+
+    var g = ctx.createLinearGradient(0, 0, size * 0.3, size);
+    g.addColorStop(0, '#6aa84f');
+    g.addColorStop(0.5, '#3f7a2e');
+    g.addColorStop(1, '#1f3d16');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+
+    // 左上角的高光
+    var rg = ctx.createRadialGradient(size * 0.34, size * 0.24, size * 0.04,
+                                      size * 0.34, size * 0.24, size * 0.95);
+    rg.addColorStop(0, 'rgba(255,255,255,0.34)');
+    rg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, size, size);
+
+    // 底部一圈柔光，让她站得更稳
+    var bg = ctx.createRadialGradient(size / 2, size * 0.92, size * 0.05,
+                                      size / 2, size * 0.92, size * 0.5);
+    bg.addColorStop(0, 'rgba(220,255,200,0.30)');
+    bg.addColorStop(1, 'rgba(220,255,200,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, size, size);
+
+    // 角落两片叶子做点缀
+    function leaf(cx, cy, len, ang, alpha) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(ang);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#dff0c8';
+      ctx.beginPath();
+      ctx.moveTo(0, len);
+      ctx.quadraticCurveTo(len * 0.55, 0, 0, -len);
+      ctx.quadraticCurveTo(-len * 0.55, 0, 0, len);
+      ctx.fill();
+      ctx.restore();
+    }
+    leaf(size * 0.13, size * 0.14, size * 0.10, -0.5, 0.45);
+    leaf(size * 0.88, size * 0.30, size * 0.075, 0.7, 0.35);
+
+    // 她的立绘（自动裁边，所以脚底刚好落在那条基线上）
+    var h = size * 0.88;
+    var drew = NT.assets && NT.assets.drawNahida(ctx, size / 2, size * 0.95, h, false, 'happy');
+
+    // 没有立绘素材就画一个占位（保证这个工具任何时候都能出图）
+    if (!drew) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.arc(size / 2, size * 0.52, size * 0.20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8ec96a';
+      ctx.beginPath();
+      ctx.moveTo(size * 0.28, size * 0.95);
+      ctx.lineTo(size * 0.72, size * 0.95);
+      ctx.lineTo(size * 0.62, size * 0.72);
+      ctx.lineTo(size * 0.38, size * 0.72);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+    document.title = 'icon-' + size + ' ready';
+  }
+
+  // tools/ 比 开始游戏.html 深一层，直接告诉加载器素材夹在哪
+  // （游戏本体不用管这个，它会自动探测）
+  NT.assets.setBase('../图片素材/');
+
+  var total = NT.assets.init();
+  if (total > 0) {
+    NT.assets.onSettled(draw);
+    setTimeout(draw, 4000);
+  } else {
+    draw();
+  }
+})();
+</script>
+</body>
+</html>

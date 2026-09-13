@@ -1,0 +1,13 @@
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~
+
+# 浏览器本地存档（游戏存档在 localStorage 里，不在仓库中）
+*.local

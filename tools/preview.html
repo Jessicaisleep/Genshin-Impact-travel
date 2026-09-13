@@ -1,0 +1,149 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>明信片预览</title>
+<style>
+  body{margin:0;background:#141310;color:#ddd6c6;
+       font:13px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  #grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:14px}
+  .cell{display:flex;flex-direction:column;gap:6px}
+  .cell canvas{width:100%;height:auto;display:block;border-radius:4px;
+               box-shadow:0 10px 24px rgba(0,0,0,.5)}
+  .cap{font-size:11.5px;color:#9a9282;line-height:1.5}
+  .cap b{color:#cfe0b8;font-weight:600}
+  .cap span{color:#6f685c}
+</style>
+</head>
+<body>
+<div id="grid"></div>
+
+<script src="../src/core/util.js"></script>
+<script src="../src/core/rng.js"></script>
+<script src="../src/data/config.js"></script>
+<script src="../src/data/geo.js"></script>
+<script src="../src/data/destinations.js"></script>
+<script src="../src/data/companions.js"></script>
+<script src="../src/data/events.js"></script>
+<script src="../src/data/templates.js"></script>
+<script src="../src/data/farm.js"></script>
+<script src="../src/data/kitchen.js"></script>
+<script src="../src/data/home.js"></script>
+<script src="../src/data/journey.js"></script>
+<script src="../src/engine/gacha.js"></script>
+<script src="../src/engine/journey.js"></script>
+<script src="../src/engine/trip.js"></script>
+<script src="../src/text/template-text.js"></script>
+<script src="../src/time/clock.js"></script>
+<script src="../src/store.js"></script>
+<script src="../src/render/placeholder.js"></script>
+<script src="../src/render/effects.js"></script>
+<script src="../src/render/frames.js"></script>
+<script src="../src/render/postcard.js"></script>
+<script src="../src/farm.js"></script>
+<script src="../src/home.js"></script>
+<script src="../assets/manifest.js"></script>
+<script src="../src/assets.js"></script>
+<script>
+(function () {
+  var Q = new URLSearchParams(location.search);
+  var drew = false;
+
+  function render() {
+    if (drew) return;
+    drew = true;
+    try { renderInner(); }
+    catch (e) {
+      document.title = '预览失败: ' + (e && e.message ? e.message : e);
+      var g2 = document.getElementById('grid');
+      if (g2) g2.innerHTML = '<pre style="color:#d98b7a;padding:16px;white-space:pre-wrap">' +
+        (e && e.stack || e) + '</pre>';
+    }
+  }
+
+  function renderInner() {
+    var n = parseInt(Q.get('n') || '8', 10);
+    var scale = parseFloat(Q.get('scale') || '0.30');
+    var from = parseInt(Q.get('start') || '0', 10);
+    var only = Q.get('only') !== null;
+    var grid = document.getElementById('grid');
+    if (only) {
+      grid.style.gridTemplateColumns = '1fr';
+      grid.style.maxWidth = '760px';
+      grid.style.margin = '0 auto';
+    }
+
+    var dests = NT.data.destinations;
+    var tods = NT.data.timesOfDay;
+    var frames = NT.frames.ids;
+
+    for (var k = 0; k < n; k++) {
+      var i = k + from;
+      var d = dests[i % dests.length];
+      var compat = d.weatherCompat || ['clear'];
+      var targetW = NT.data.weatherById(compat[(i * 3 + 1) % compat.length]) || NT.data.weathers[0];
+      var targetT = tods[(i * 2 + 2) % tods.length];
+
+      var fact = NT.trip.create({
+        mode: 'region', regionId: d.id, now: 1730000000000 + i * 86400000, seed: 4200 + i * 137
+      });
+      fact.weatherId = targetW.id;
+      fact.timeOfDayId = targetT.id;
+      fact.companionId = (i % 3 === 0) ? null : NT.data.companions[i % NT.data.companions.length].id;
+      fact.presentation.frameId = frames[i % frames.length];
+      fact.presentation.tilt = -1.4 + (i % 5) * 0.7;
+
+      var local = NT.gacha.regionEvents(d.id);
+      var chosen = [];
+      for (var e = 0; e < 2 && e < local.length; e++) {
+        var ev = local[(i + e * 3) % local.length];
+        chosen.push({
+          eventId: ev.id, name: ev.name, desc: ev.desc, stickerId: ev.sticker,
+          category: ev.category, categoryLabel: ev.categoryLabel, rarity: ev.rarity
+        });
+      }
+      fact.events = chosen;
+      fact.text = NT.text.templateRender(fact);
+
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      var cv;
+      try {
+        cv = NT.postcard.render(fact, { scale: scale });
+      } catch (ex) {
+        cell.innerHTML = '<div style="color:#d98b7a;padding:20px">渲染失败: ' + ex.message + '</div>';
+        grid.appendChild(cell);
+        continue;
+      }
+      cell.appendChild(cv);
+
+      var res = NT.trip.resolve(fact);
+      var cap = document.createElement('div');
+      cap.className = 'cap';
+      cap.innerHTML = '<b>' + d.name + '</b> <span>' + targetW.name + '·' + targetT.name +
+        ' · ' + fact.presentation.frameId + (res.companion ? ' · 与' + res.companion.name : ' · 独行') +
+        '<br>' + chosen.map(function (c) { return c.categoryLabel + '『' + c.name + '』'; }).join(' ') +
+        '</span>';
+      cell.appendChild(cap);
+      grid.appendChild(cell);
+    }
+    document.title = '预览完成 ' + n + (NT.assets.status().ready ? '（用了真图 ' + NT.assets.status().ready + '）' : '');
+  }
+
+  // 素材是异步加载的：等全部结束（成功或失败）再画，否则预览里全是占位图
+  //
+  // 注意：tools/ 比 开始游戏.html 深一层，所以这里直接告诉加载器素材夹在哪
+  // （../../图片素材/ 相对于本文件）。游戏本体不用管这个，它会自动探测。
+  NT.assets.setBase('../图片素材/');
+
+  var total = NT.assets.init();
+  if (total > 0) {
+    NT.assets.onSettled(render);
+    setTimeout(render, 4000);      // 兜底：万一有图卡住不动
+  } else {
+    render();
+  }
+})();
+</script>
+</body>
+</html>

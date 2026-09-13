@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>素材生成器 · 纳西妲旅行</title>
+<style>
+  :root{--bg:#161512;--card:#24211c;--line:#3a352c;--fg:#efe9dd;--fg2:#a49c8c;--green:#8ec96a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:14px/1.7 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;padding:0 0 60px}
+  header{padding:22px 20px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
+         background:rgba(22,21,18,.95);backdrop-filter:blur(8px);z-index:5}
+  h1{margin:0 0 6px;font-size:18px;letter-spacing:.06em}
+  .sub{color:var(--fg2);font-size:12.5px}
+  .wrap{padding:18px 20px;max-width:1100px}
+  section{margin-bottom:30px}
+  h2{font-size:14.5px;color:var(--fg2);font-weight:600;letter-spacing:.08em;margin:0 0 4px}
+  .desc{color:#6f685c;font-size:12.5px;margin-bottom:12px;line-height:1.7}
+  .grid{display:flex;flex-wrap:wrap;gap:8px;background:var(--card);border:1px solid var(--line);
+        border-radius:12px;padding:12px}
+  .grid img,.grid canvas{background:#2f2b24;border-radius:6px;display:block}
+  .btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  button{background:var(--card);border:1px solid var(--line);color:var(--fg);
+         border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+  button:hover{border-color:#5a5244}
+  button.primary{background:linear-gradient(180deg,#9ed474,#7bb355);color:#17240f;
+                 border:0;font-weight:600}
+  code{background:#2b2822;padding:2px 6px;border-radius:4px;font-size:12px;color:#d8ceb8}
+  .note{background:#2a2620;border-left:2px solid var(--green);padding:11px 14px;
+        border-radius:8px;font-size:12.5px;color:#c9c0ae;line-height:1.8;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>素材生成器</h1>
+  <div class="sub">程序化产出装饰素材 · 全部由代码绘制，不需要联网，不需要任何插件</div>
+</header>
+
+<div class="wrap">
+  <div class="note">
+    <b>先说明一件事</b>：游戏本身<b>不需要</b>这些 PNG —— 它在运行时用同样的代码直接画。
+    这个页面的用途是：① 把素材导出成文件，方便你替换/微调/给画师做参考；② 验证"装饰层完全不需要买素材"。
+    真正必须外部提供的只有<b>场景背景</b>和<b>角色立绘</b>。
+  </div>
+
+  <section>
+    <h2>1 · 贴纸表 (stickers.png)</h2>
+    <div class="desc">24 种事件贴纸，每格 256px，透明底。附赠 coordinates JSON，可直接切图。</div>
+    <div class="grid" id="grid-stickers"></div>
+    <div class="btns">
+      <button class="primary" data-dl="stickers">下载贴纸表</button>
+      <button data-dl="stickers-json">下载坐标 JSON</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · 邮戳表 (stamps.png)</h2>
+    <div class="desc">8 枚旅行邮戳，每格 256px，透明底。</div>
+    <div class="grid" id="grid-stamps"></div>
+    <div class="btns"><button class="primary" data-dl="stamps">下载邮戳表</button></div>
+  </section>
+
+  <section>
+    <h2>3 · 纸质纹理 (paper-tile.png)</h2>
+    <div class="desc">512×512 可无缝平铺的纤维纹理，用于给明信片加纸感。</div>
+    <div class="grid" id="grid-paper"></div>
+    <div class="btns">
+      <button class="primary" data-dl="paper">下载纹理</button>
+      <button data-dl="grain">下载颗粒</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · 画框预览 (frames.png)</h2>
+    <div class="desc">5 种画框，按明信片真实比例 (1200×1800) 渲染后缩放。这些是"盖在照片上的框"，实际使用时是透明叠加层。</div>
+    <div class="grid" id="grid-frames"></div>
+    <div class="btns"><button class="primary" data-dl="frames">下载画框表</button></div>
+  </section>
+
+  <section>
+    <h2>5 · 应用图标 (icon-512.png / icon-192.png)</h2>
+    <div class="desc">PWA / 桌面快捷方式用的图标。</div>
+    <div class="grid" id="grid-icons"></div>
+    <div class="btns">
+      <button class="primary" data-dl="icons">下载全部图标</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>6 · 一键全部</h2>
+    <div class="btns">
+      <button class="primary" data-dl="all">下载全部素材</button>
+    </div>
+    <div class="desc" style="margin-top:10px">
+      浏览器会连续弹出多个下载，请允许本站点"下载多个文件"。
+    </div>
+  </section>
+</div>
+
+<script src="../src/core/util.js"></script>
+<script src="../src/core/rng.js"></script>
+<script src="../src/data/config.js"></script>
+<script src="../src/data/destinations.js"></script>
+<script src="../src/data/companions.js"></script>
+<script src="../src/data/events.js"></script>
+<script src="../src/data/templates.js"></script>
+<script src="../src/render/placeholder.js"></script>
+<script src="../src/render/effects.js"></script>
+<script src="../src/render/frames.js"></script>
+<script>
+(function () {
+  var U = NT.util, R = NT.rng, FX = NT.effects, PH = NT.placeholder, FR = NT.frames;
+
+  function cv(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+  function download(canvas, filename) {
+    var a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); }, 400);
+  }
+  function downloadText(text, filename) {
+    var blob = new Blob([text], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 400);
+  }
+
+  /* ---- 1. 贴纸表 ---- */
+  var stickerKinds = [];
+  for (var i = 0; i < NT.data.events.length; i++) {
+    var k = NT.data.events[i].sticker;
+    if (stickerKinds.indexOf(k) < 0) stickerKinds.push(k);
+  }
+  var CELL = 256, COLS = 6;
+  var rows = Math.ceil(stickerKinds.length / COLS);
+  var stickerSheet = cv(CELL * COLS, CELL * rows);
+  var ssctx = stickerSheet.getContext('2d');
+  var coords = { cell: CELL, cols: COLS, count: stickerKinds.length, items: {} };
+  for (var s = 0; s < stickerKinds.length; s++) {
+    var cxi = (s % COLS) * CELL + CELL / 2;
+    var cyi = Math.floor(s / COLS) * CELL + CELL / 2;
+    PH.sticker(ssctx, stickerKinds[s], cxi, cyi, CELL * 0.62, R.mulberry32(900 + s));
+    coords.items[stickerKinds[s]] = { x: (s % COLS) * CELL, y: Math.floor(s / COLS) * CELL, w: CELL, h: CELL };
+  }
+  var gs = document.getElementById('grid-stickers');
+  var previewS = cv(CELL * COLS, CELL * rows);
+  previewS.getContext('2d').drawImage(stickerSheet, 0, 0);
+  previewS.style.width = '100%'; previewS.style.height = 'auto';
+  gs.appendChild(previewS);
+
+  /* ---- 2. 邮戳表 ---- */
+  var stampNames = ['蒙德', '璃月', '稻妻', '须弥', '雪山', '枫丹', '海岛', '旅途'];
+  var stampHues = [96, 30, 320, 150, 200, 185, 210, 45];
+  var stampSheet = cv(CELL * 4, CELL * 2);
+  var sctx2 = stampSheet.getContext('2d');
+  for (var t = 0; t < stampNames.length; t++) {
+    var tx = (t % 4) * CELL + CELL / 2;
+    var ty = Math.floor(t / 4) * CELL + CELL / 2;
+    FR.stamp(sctx2, tx, ty, CELL * 0.38, (t % 2 ? 1 : -1) * (3 + t), 1, stampHues[t], stampNames[t]);
+  }
+  var gp = document.getElementById('grid-stamps');
+  var previewP = cv(CELL * 4, CELL * 2);
+  previewP.getContext('2d').drawImage(stampSheet, 0, 0);
+  previewP.style.width = '100%'; previewP.style.height = 'auto';
+  gp.appendChild(previewP);
+
+  /* ---- 3. 纹理 ---- */
+  var paperTile = cv(512, 512);
+  (function () {
+    var tmp = cv(512, 512), tctx = tmp.getContext('2d');
+    FX.paper(tmp, 1.0, 12345);
+    paperTile.getContext('2d').drawImage(tmp, 0, 0);
+    // FX.paper 用 overlay 混合，单独在透明底上不显；补一层底色以便导出可见
+    var pctx = paperTile.getContext('2d');
+    var base = cv(512, 512);
+    var bctx = base.getContext('2d');
+    bctx.fillStyle = '#f6f1e6'; bctx.fillRect(0, 0, 512, 512);
+    bctx.drawImage(tmp, 0, 0);
+    pctx.clearRect(0, 0, 512, 512);
+    pctx.drawImage(base, 0, 0);
+  })();
+  var grainTile = cv(256, 256);
+  (function () {
+    var tileData = FX._grainTileFor(777);
+    grainTile.getContext('2d').drawImage(tileData, 0, 0);
+  })();
+  var gpaper = document.getElementById('grid-paper');
+  [paperTile, grainTile].forEach(function (c) {
+    var o = cv(c.width, c.height);
+    o.getContext('2d').drawImage(c, 0, 0);
+    o.style.width = '180px'; o.style.height = '180px';
+    gpaper.appendChild(o);
+  });
+
+  /* ---- 4. 画框 ---- */
+  var fw = 300, fh = 450;
+  var frameSheet = cv(fw * FR.ids.length, fh);
+  var fctx = frameSheet.getContext('2d');
+  for (var f = 0; f < FR.ids.length; f++) {
+    var one = cv(fw, fh);
+    var octx = one.getContext('2d');
+    // 底衬一张图，才能看出框的效果
+    var d = NT.data.destinations[f % NT.data.destinations.length];
+    PH.background(octx, fw, fh, d, NT.data.timesOfDay[1], NT.data.weathers[0], 500 + f);
+    FR.draw(octx, fw, fh, FR.ids[f], R.mulberry32(31 + f));
+    fctx.drawImage(one, f * fw, 0);
+  }
+  var gf = document.getElementById('grid-frames');
+  var previewF = cv(fw * FR.ids.length, fh);
+  previewF.getContext('2d').drawImage(frameSheet, 0, 0);
+  previewF.style.width = '100%'; previewF.style.height = 'auto';
+  gf.appendChild(previewF);
+
+  /* ---- 5. 图标 ---- */
+  function makeIcon(size) {
+    var c = cv(size, size), ctx = c.getContext('2d');
+    var g = ctx.createLinearGradient(0, 0, 0, size);
+    g.addColorStop(0, '#2b3a22'); g.addColorStop(1, '#16200f');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+    PH.chibi(ctx, size / 2, size * 0.90, size * 0.80,
+      { hair: '#f4f2ea', dress: '#8ec96a', accent: '#f7fbe8', skin: '#ffe2cc', hat: 'leaf' }, 'happy', false);
+    return c;
+  }
+  var icon512 = makeIcon(512), icon192 = makeIcon(192);
+  var gi = document.getElementById('grid-icons');
+  [icon512, icon192].forEach(function (c) {
+    var o = cv(c.width, c.height);
+    o.getContext('2d').drawImage(c, 0, 0);
+    o.style.width = c.width + 'px'; o.style.height = c.height + 'px';
+    o.style.maxWidth = '160px'; o.style.maxHeight = '160px';
+    gi.appendChild(o);
+  });
+
+  /* ---- 下载 ---- */
+  function dl(what) {
+    switch (what) {
+      case 'stickers': download(stickerSheet, 'stickers.png'); break;
+      case 'stickers-json': downloadText(JSON.stringify(coords, null, 2), 'stickers.json'); break;
+      case 'stamps': download(stampSheet, 'stamps.png'); break;
+      case 'paper': download(paperTile, 'paper-tile.png'); break;
+      case 'grain': download(grainTile, 'grain-tile.png'); break;
+      case 'frames': download(frameSheet, 'frames.png'); break;
+      case 'icons':
+        download(icon512, 'icon-512.png');
+        setTimeout(function () { download(icon192, 'icon-192.png'); }, 500);
+        break;
+      case 'all':
+        download(stickerSheet, 'stickers.png');
+        setTimeout(function () { downloadText(JSON.stringify(coords, null, 2), 'stickers.json'); }, 400);
+        setTimeout(function () { download(stampSheet, 'stamps.png'); }, 800);
+        setTimeout(function () { download(paperTile, 'paper-tile.png'); }, 1200);
+        setTimeout(function () { download(grainTile, 'grain-tile.png'); }, 1600);
+        setTimeout(function () { download(frameSheet, 'frames.png'); }, 2000);
+        setTimeout(function () { download(icon512, 'icon-512.png'); }, 2400);
+        setTimeout(function () { download(icon192, 'icon-192.png'); }, 2800);
+        break;
+    }
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-dl]') : null;
+    if (b) dl(b.getAttribute('data-dl'));
+  });
+})();
+</script>
+</body>
+</html>

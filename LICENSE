@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Jessicaisleep
+Copyright (c) 2026 纳西妲旅行 (nahida-travel) contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---------------------------------------------------------------------------
+关于代码许可
+---------------------------------------------------------------------------
+上面这段 MIT 只覆盖**代码**（src/、tools/、index.html 等）。
+
+**图片素材不在 MIT 范围内。** 纳西妲、派蒙、柯莱等角色是米哈游（HoYoverse）
+的知识产权，本仓库的图片素材属于非商业同人二创，仅供个人学习与游玩使用，
+不得用于商业用途。
+
+如果你要基于本项目发布自己的版本：
+  · 代码部分遵守上面的 MIT 即可
+  · 素材部分请自行承担相应风险，或替换为你自己拥有权利的素材
+  · 本项目的资源命名是通用的（主角-*、场景-*、配角-*），
+    换成你自己的角色和地图只需要替换图片，见 assets/manifest.js
+
+本项目与米哈游（HoYoverse）没有任何隶属关系，未获其授权或认可。

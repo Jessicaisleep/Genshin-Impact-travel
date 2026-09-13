@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>玩具素材一览</title>
+<style>
+  body{margin:0;background:#2a2a2a;color:#ddd;font:13px "Microsoft YaHei",sans-serif}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:8px}
+  .cell{background:repeating-conic-gradient(#3a3a3a 0% 25%,#333 0% 50%) 50%/16px 16px;
+        border:1px solid #555;border-radius:6px;padding:4px;text-align:center}
+  .cell img{width:100%;height:170px;object-fit:contain;display:block}
+  .cell .n{font-size:12px;color:#9c9;margin-top:3px}
+  .ruler{height:170px;position:relative}
+</style>
+</head>
+<body>
+<div class="grid" id="g"></div>
+<script>
+var toys = ['秋千','蹦床','小风车','小水池','小灯笼','吊床','藤球','沙坑','地毯','小挂饰'];
+var html = '';
+toys.forEach(function (t) {
+  html += '<div class="cell"><img src="../../图片素材/玩具-' + t + '.png"><div class="n">' + t + '</div></div>';
+});
+document.getElementById('g').innerHTML = html;
+</script>
+</body>
+</html>

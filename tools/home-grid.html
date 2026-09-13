@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>家 - 坐标标尺</title>
+<style>
+  body{margin:0;background:#111;color:#eee;font:12px monospace}
+  .wrap{position:relative;width:1280px;height:720px;margin:0}
+  img{position:absolute;left:0;top:0;width:1280px;height:720px}
+  .grid{position:absolute;left:0;top:0;width:1280px;height:720px}
+  .grid div{position:absolute;background:rgba(255,0,0,.45)}
+  .grid .v{top:0;width:1px;height:720px}
+  .grid .h{left:0;height:1px;width:1280px}
+  .lbl{position:absolute;color:#ff0;font-weight:700;text-shadow:0 0 3px #000}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <img id="home" src="../../图片素材/家-全景.png">
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+(function () {
+  var W = 1280, H = 720;
+  var g = document.getElementById('grid');
+  var html = '';
+  for (var i = 1; i < 10; i++) {
+    html += '<div class="v" style="left:' + (W * i / 10) + 'px"></div>';
+    html += '<div class="h" style="top:' + (H * i / 10) + 'px"></div>';
+  }
+  // 每 10% 标个数字
+  for (var j = 0; j < 10; j++) {
+    html += '<div class="lbl" style="left:' + (W * j / 10 + 2) + 'px;top:2px">' + (j / 10).toFixed(1) + '</div>';
+    html += '<div class="lbl" style="left:2px;top:' + (H * j / 10 + 2) + 'px">' + (j / 10).toFixed(1) + '</div>';
+  }
+  g.innerHTML = html;
+})();
+</script>
+</body>
+</html>
