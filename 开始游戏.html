@@ -66,6 +66,9 @@
   .screen-home{position:fixed;inset:0;z-index:2;background:#0b0a09}
   .stage-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
   .stage-box{position:relative;width:min(100vw,calc(100vh * 16 / 9));max-height:100vh}
+  /* 这一层只在手机竖屏时用来横向滚动（见下面的媒体查询）；
+     宽屏上 display:contents 等于它不存在，不影响原来的布局 */
+  .stage-scroll{display:contents}
   .stage{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#7fa862;
          cursor:pointer;box-shadow:0 0 60px rgba(0,0,0,.7)}
   .stage canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
@@ -143,8 +146,16 @@
   @media (max-width:899px), (max-aspect-ratio:1/1){
     .screen-home{position:static;background:transparent}
     .stage-wrap{position:static;display:block}
+
+    /* 手机上如果只按屏幕宽度铺 16:9，画面高度只剩屏幕的四分之一，
+       而且 stage 的浮层字号是 clamp(宽/62, 9, 20) —— 会被下限卡在 9px，小到看不清。
+       所以竖屏时改成**按屏幕高度定尺寸**，左右超出屏幕的部分用横向拖动查看。
+       一行字和画面都跟着变大，想横屏的玩家横过来就是正好铺满。 */
     .stage-box{width:100%;max-height:none}
-    .stage{border-radius:14px}
+    .stage-scroll{display:block;overflow-x:auto;overflow-y:hidden;
+                  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+    .stage{width:auto;height:46vh;min-height:190px;border-radius:14px}
+
     .home-controls{position:static;background:none;padding:0}
     .stage-line{padding:1em 0 0;text-shadow:none}
     .stage-sheet{position:static;transform:none;width:auto;margin-top:1em}
@@ -152,6 +163,19 @@
     .modal-layer{position:fixed;padding:4%}
     .modal{width:96%;max-height:88%}
   }
+
+  /* 竖屏提示：出现在屏幕正中，几秒后自己淡掉。
+     不挡操作（pointer-events:none）、不强制旋转 —— 爱竖屏就竖屏。 */
+  .rotate-hint{display:none}
+  @media (max-width:899px) and (orientation:portrait){
+    .rotate-hint{display:block;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+                 z-index:60;background:rgba(14,13,11,.94);color:#e8e1d2;
+                 border:1px solid #4d4638;border-radius:999px;padding:.7em 1.6em;
+                 font-size:17px;letter-spacing:.08em;white-space:nowrap;
+                 pointer-events:none;box-shadow:0 10px 34px rgba(0,0,0,.7);
+                 animation:rotateHint 6s forwards}
+  }
+  @keyframes rotateHint{0%,68%{opacity:1}100%{opacity:0;visibility:hidden}}
 
   .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 10px;

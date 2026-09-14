@@ -578,6 +578,8 @@
 
     return '<div class="stage-wrap">' +
       '<div class="stage-box">' +
+      // 手机上这一层负责横向滚动（宽屏上 display:contents，等于不存在）
+      '<div class="stage-scroll">' +
       '<div class="stage" id="stage">' +
       '<canvas id="world-bg"></canvas>' +
       '<canvas id="world-fg"></canvas>' +
@@ -599,6 +601,9 @@
         : '<div class="stage-hint">点她一下试试</div>') +
       (app.fieldSheet ? app.viewFieldSheet(app.fieldSheet) : '') +
       '</div>' +
+      '</div>' +                       // 收掉 .stage-scroll
+      // 竖屏时出现在屏幕正中，几秒后自己淡掉，不挡操作也不强制旋转
+      '<div class="rotate-hint">建议横屏</div>' +
       '<div class="home-controls">' +
       '<div class="stage-bar">' +
       // 她出门了就把按钮换成"旅途中"，点它打开旅途面板，而不是又送一次
@@ -744,9 +749,12 @@
     bg.width = W; bg.height = H;
     fg.width = W; fg.height = H;
 
-    // 浮层字号跟着舞台缩放
+    // 浮层字号跟着舞台缩放。
+    // 窄屏（手机）要把下限抬到 16px：手机舞台只有 600 上下宽，按宽/62 算出来是 10px，
+    // 而徽章、气泡这些浮层都是 .72em / .76em —— 实际只有 7px 左右，根本看不清。
     var cssW = rect.width || NT.data.HOME_W;
-    stage.style.fontSize = U.clamp(cssW / 62, 9, 20).toFixed(2) + 'px';
+    var baseMin = root.innerWidth <= 899 ? 16 : 9;
+    stage.style.fontSize = U.clamp(cssW / 62, baseMin, 20).toFixed(2) + 'px';
 
     var s = app.save;
     var now = Date.now();
@@ -1254,19 +1262,83 @@
       '</div>' + cards + '</div>';
   };
 
-  app.mountToys = function () {
+  app.mountToys = function (retried) {
     var slots = document.querySelectorAll('[data-toy]');
+    var anyMissing = false;
     for (var i = 0; i < slots.length; i++) {
       var id = slots[i].getAttribute('data-toy');
       var c = document.createElement('canvas');
       c.width = 160; c.height = 140;
-      NT.placeholder.toy(c.getContext('2d'), id, 80, 118, 96, NT.rng.mulberry32(i + 3));
+      var tctx = c.getContext('2d');
+      // 有真素材就用真的 —— 和摆在家里看到的同一张图。
+      // 以前这里无条件调 placeholder.toy，所以玩具箱里全是代码画的图标。
+      if (!(NT.assets && NT.assets.drawToy(tctx, 80, 118, 96, id))) {
+        NT.placeholder.toy(tctx, id, 80, 118, 96, NT.rng.mulberry32(i + 3));
+        anyMissing = true;
+      }
       c.style.width = '100%'; c.style.height = 'auto';
+      slots[i].innerHTML = '';      // 重画时先清掉旧的，免得叠加
       slots[i].appendChild(c);
+    }
+    if (anyMissing && !retried && NT.assets && NT.assets.onSettled) {
+      NT.assets.onSettled(function () { app.mountToys(true); });
     }
   };
 
   /* ---------------- 交流 ---------------- */
+
+  /**
+   * 聊天面板顶上那张插图：**家里的真实画面**（背景 + 摆出来的玩具 + 她本人）。
+   *
+   * 以前这里是无条件调 NT.placeholder.homeWorld / chibi 的 ——
+   * 所以不管素材装没装，看到的永远是代码画的占位图。
+   * 现在和主舞台一个规矩：有真素材就用真的，缺哪张才用占位图补哪张。
+   *
+   * 素材是异步加载的，第一次画很可能还没加载完，所以没画到真图时
+   * 等 onSettled 再补画一次（retried 防止加载失败时无限递归）。
+   */
+  function drawChatArt(el, s, st, retried) {
+    var W = 1280, H = 720, chH = H * 0.25;   // 和主舞台同一个比例
+    var c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var ctx = c.getContext('2d');
+    var A = NT.assets;
+
+    var fields = {};
+    ['dry', 'wet'].forEach(function (f) {
+      var sst = NT.farm.status(s, f, Date.now());
+      fields[f] = { cropId: sst.crop ? sst.crop.id : null, progress: sst.progress, ripeColor: '#e2b25c' };
+    });
+
+    var homeImg = A && A.home();
+    var bgOk = !!(homeImg && A.drawCover(ctx, homeImg, W, H));
+    if (!bgOk) NT.placeholder.homeWorld(ctx, W, H, { seed: 4242, fields: fields });
+
+    // 摆出来的玩具，和家里看到的一致
+    (s.home.placed || []).forEach(function (p, i) {
+      var slot = NT.data.toySlots[p.slot];
+      if (!slot) return;
+      var th = chH * NT.data.toySize(p.toyId);
+      if (!(A && A.drawToy(ctx, W * slot.x, H * slot.y, th, p.toyId))) {
+        NT.placeholder.toy(ctx, p.toyId, W * slot.x, H * slot.y, th, NT.rng.mulberry32(i + 11));
+      }
+    });
+
+    // 她本人：画在她此刻站的地方
+    var spot = NT.home.spot(s);
+    var sprite = { hair: '#f4f2ea', dress: '#8ec96a', accent: '#f7fbe8', skin: '#ffe2cc', hat: 'leaf' };
+    var mood = st.lie ? 'tired' : st.mood;
+    if (!(A && A.drawNahida(ctx, W * spot.x, H * spot.y, chH, false, mood))) {
+      NT.placeholder.chibi(ctx, W * spot.x, H * spot.y, chH, sprite, mood, false);
+    }
+
+    c.style.width = '100%'; c.style.height = 'auto'; c.style.borderRadius = '12px';
+    el.innerHTML = ''; el.appendChild(c);
+
+    if (!bgOk && !retried && A && A.onSettled) {
+      A.onSettled(function () { drawChatArt(el, s, st, true); });
+    }
+  }
 
   app.viewChat = function () {
     var s = app.save;
@@ -1309,24 +1381,7 @@
   app.mountChat = function () {
     var el = $('chat-stage');
     var s = app.save, st = NT.home.state(s);
-    if (el) {
-      var W = 1280, H = 720;
-      var c = document.createElement('canvas');
-      c.width = W; c.height = H;
-      var ctx = c.getContext('2d');
-      var fields = {};
-      ['dry', 'wet'].forEach(function (f) {
-        var sst = NT.farm.status(s, f, Date.now());
-        fields[f] = { cropId: sst.crop ? sst.crop.id : null, progress: sst.progress, ripeColor: '#e2b25c' };
-      });
-      NT.placeholder.homeWorld(ctx, W, H, { seed: 4242, fields: fields });
-      var spot = NT.home.spot(s);
-      var sprite = { hair: '#f4f2ea', dress: '#8ec96a', accent: '#f7fbe8', skin: '#ffe2cc', hat: 'leaf' };
-      NT.placeholder.chibi(ctx, W * spot.x, H * spot.y, H * 0.195, sprite,
-        st.lie ? 'tired' : st.mood, false);
-      c.style.width = '100%'; c.style.height = 'auto'; c.style.borderRadius = '12px';
-      el.innerHTML = ''; el.appendChild(c);
-    }
+    if (el) drawChatArt(el, s, st, false);
     var log = $('chat-log');
     if (log) log.scrollTop = log.scrollHeight;
     var inp = $('chat-input');
@@ -1458,17 +1513,26 @@
       '</div></div>';
   };
 
-  app.mountWaiting = function () {
+  app.mountWaiting = function (retried) {
     var el = $('wait-art'); if (!el) return;
     var t = app.save.activeTrip; if (!t) return;
     var res = NT.trip.resolve(t);
     var c = document.createElement('canvas');
     c.width = 480; c.height = 270;
     var ctx = c.getContext('2d');
-    NT.placeholder.background(ctx, 480, 270, res.destination, res.timeOfDay, res.weather, t.seed ^ 0x1234);
+    // 这个地区有真背景图就用真的 —— 以前无条件画占位图，所以旅途中看到的是假风景
+    var A = NT.assets;
+    var bgImg = A && A.bg(res.destination ? res.destination.id : null);
+    var ok = !!(bgImg && A.drawCover(ctx, bgImg, 480, 270));
+    if (!ok) {
+      NT.placeholder.background(ctx, 480, 270, res.destination, res.timeOfDay, res.weather, t.seed ^ 0x1234);
+    }
     NT.effects.tint(c, res.timeOfDay ? res.timeOfDay.tint : null);
     c.style.width = '100%'; c.style.height = 'auto'; c.style.borderRadius = '12px';
     el.innerHTML = ''; el.appendChild(c);
+    if (!ok && !retried && A && A.onSettled) {
+      A.onSettled(function () { app.mountWaiting(true); });
+    }
   };
 
   /* ---------------- 结果 ---------------- */
