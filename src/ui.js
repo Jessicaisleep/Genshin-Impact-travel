@@ -218,6 +218,8 @@
       case 'modal': app.modal = arg; app.fieldSheet = null; app.render(); break;
       case 'close-modal': app.modal = null; app.render(); break;
       case 'noop': break;
+      case 'fullscreen': app.toggleFullscreen(); break;
+      case 'toggle-bar': app.toggleBar(); break;
       case 'pick-home':
         s.homeId = arg; s.homeChosen = true;
         NT.store.save(s); app.screen = 'home'; app.render();
@@ -353,6 +355,95 @@
     _rawAction.call(app, act, arg);
     app.checkAchievements();
   };
+
+  /**
+   * 收起 / 展开下面那一排按钮。
+   *
+   * 铺满整屏之后底部那排按钮会压住画面（横屏竖屏都一样），收起来就能看全景。
+   * 右上角的按钮文字会跟着变：展开时显示"收起"，收起后显示"菜单"。
+   */
+  app.barHidden = false;
+  app.toggleBar = function () {
+    app.barHidden = !app.barHidden;
+    app.render();
+  };
+
+  /**
+   * 全屏 / 横屏按钮 —— 三态循环切换，不是"锁死"按钮。
+   *
+   *   普通（非全屏） --点--> 全屏 --点--> 全屏 + 横屏 --点--> 回到普通
+   *
+   * 按钮上的字就是"下一戳会干什么"：全屏 / 横屏 / 退出。
+   *
+   * 为什么非得要这个按钮：网页没有资格自己转屏。浏览器规定只有**已经进入全屏**
+   * 才允许锁方向（screen.orientation.lock），而且必须由用户亲手点一下触发。
+   * 所以「转手机自动变横屏」在网页里做不到（除非手机自己开着自动旋转），
+   * 只能让玩家点两下：一下进全屏、一下锁横屏。
+   *
+   * 锁不上也不算失败（iOS Safari 不支持锁方向）—— 提示玩家自己把手机横过来。
+   */
+  app.fsStage = 0;                     // 0=普通  1=全屏  2=全屏+横屏
+  app.fsLabels = ['全屏', '横屏', '退出'];
+
+  app.syncFsBtn = function () {
+    var b = document.querySelector('.stage-fsbtn');
+    if (b) {
+      b.textContent = app.fsLabels[app.fsStage] || app.fsLabels[0];
+      b.setAttribute('title', '当前：' + (app.fsStage === 0 ? '普通' :
+        (app.fsStage === 1 ? '全屏' : '全屏横屏')) + '　点一下切到下一步');
+    }
+  };
+
+  app.toggleFullscreen = function () {
+    var d = document, root = d.documentElement;
+    var inFs = !!(d.fullscreenElement || d.webkitFullscreenElement);
+
+    // 玩家用 Esc / 返回手势退出了全屏，状态要跟着归零，否则会错位
+    if (!inFs && app.fsStage !== 0) { app.fsStage = 0; app.syncFsBtn(); }
+
+    // ---- 第 1 态：普通 -> 进全屏 ----
+    if (app.fsStage === 0) {
+      var req = root.requestFullscreen || root.webkitRequestFullscreen;
+      if (!req) { app.toast('这个浏览器不支持全屏，把手机横过来就行'); return; }
+      var ok1 = function () { app.fsStage = 1; app.syncFsBtn(); };
+      var bad1 = function () { app.toast('全屏没打开，把手机横过来'); };
+      try {
+        var p = req.call(root);
+        if (p && p.then) p.then(ok1, bad1); else setTimeout(ok1, 250);
+      } catch (e) { bad1(); }
+      return;
+    }
+
+    // ---- 第 2 态：全屏 -> 再锁横屏 ----
+    if (app.fsStage === 1) {
+      var o = screen.orientation || screen.mozOrientation;
+      if (o && o.lock) {
+        try {
+          var q = o.lock('landscape');
+          var ok2 = function () { app.fsStage = 2; app.syncFsBtn(); };
+          var bad2 = function () { app.toast('这个浏览器不给锁方向，把手机横过来'); };
+          if (q && q.then) q.then(ok2, bad2); else ok2();
+          return;
+        } catch (e) { /* 落到下面给提示 */ }
+      }
+      app.toast('把手机横过来');
+      return;
+    }
+
+    // ---- 第 3 态：全屏横屏 -> 全退回普通 ----
+    var exit = d.exitFullscreen || d.webkitExitFullscreen;
+    if (exit) { try { exit.call(d); } catch (e) { } }
+    app.fsStage = 0;
+    app.syncFsBtn();
+  };
+
+  // 系统手势 / Esc 退出全屏时，把状态和按钮文字一起同步回来
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
+    document.addEventListener(ev, function () {
+      var inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (!inFs && app.fsStage !== 0) { app.fsStage = 0; app.syncFsBtn(); }
+    });
+  });
 
   app.autoLocate = function () {
     var el = $('locate-result');
@@ -591,7 +682,13 @@
       (visitor ? '<span class="visitor-chip">' + esc(visitor.comp.name) + '来串门 · ' +
         esc(visitor.vst.name) + '</span>' : '') +
       '</div>' +
+      // 右上角一组按钮。用 flex 排，别各自算 right，省得改一个就要动一串
+      // 右上角就两个：全屏/横屏（手机才有）和设置。
+      // 要收的是**底边那排按钮**，所以收起按钮在下面，不在这儿。
+      '<div class="stage-tools">' +
+      '<button class="stage-gear w stage-fsbtn" data-act="fullscreen" title="全屏 / 横屏">全屏</button>' +
       '<button class="stage-gear" data-act="modal" data-arg="settings" title="设置">⚙</button>' +
+      '</div>' +
       '<div class="bubble" id="nahida-bubble"></div>' +
       '<div class="bubble visitor" id="visitor-bubble"></div>' +
       // 她在家 -> 淡出的提示；她出门了 -> 常驻的回家倒计时（独立元素，不继承提示的淡出动画）
@@ -604,7 +701,7 @@
       '</div>' +                       // 收掉 .stage-scroll
       // 竖屏时出现在屏幕正中，几秒后自己淡掉，不挡操作也不强制旋转
       '<div class="rotate-hint">建议横屏</div>' +
-      '<div class="home-controls">' +
+      '<div class="home-controls' + (app.barHidden ? ' bar-hidden' : '') + '">' +
       '<div class="stage-bar">' +
       // 她出门了就把按钮换成"旅途中"，点它打开旅途面板，而不是又送一次
       (s.activeTrip
@@ -620,6 +717,10 @@
       '<button class="sbtn" data-act="modal" data-arg="album">明信片' + badge((s.album || []).length) + '</button>' +
       '</div>' +
       '</div>' +
+      // 收起/展开底边那排按钮。**必须放在 .home-controls 外面**，
+      // 否则它自己也跟着收起来，就再也点不开了。
+      '<button class="bar-toggle' + (app.barHidden ? ' up' : '') + '" data-act="toggle-bar"' +
+        ' title="收起 / 展开下面的菜单">' + (app.barHidden ? '菜单 ▲' : '收起 ▼') + '</button>' +
       app.renderModalLayer() +
       '</div>' +
       '</div>';
@@ -755,6 +856,9 @@
     var cssW = rect.width || NT.data.HOME_W;
     var baseMin = root.innerWidth <= 899 ? 16 : 9;
     stage.style.fontSize = U.clamp(cssW / 62, baseMin, 20).toFixed(2) + 'px';
+
+    // 全屏/横屏按钮上的字要跟着当前状态走（全屏 -> 横屏 -> 退出 循环）
+    if (app.syncFsBtn) app.syncFsBtn();
 
     var s = app.save;
     var now = Date.now();

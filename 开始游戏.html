@@ -85,8 +85,21 @@
               animation:fadeHint 9s forwards}
   @keyframes fadeHint{0%,55%{opacity:1}100%{opacity:0}}
 
-  .home-controls{position:absolute;left:0;right:0;bottom:0;padding:2.2em 1.1em 1.0em;
-                 background:linear-gradient(180deg,transparent,rgba(12,11,9,.5) 40%,rgba(12,11,9,.88))}
+  .home-controls{position:absolute;left:0;right:0;bottom:0;padding:2.2em 6em 1.0em 1.1em;
+                 background:linear-gradient(180deg,transparent,rgba(12,11,9,.5) 40%,rgba(12,11,9,.88));
+                 transition:transform .28s ease,opacity .28s ease}
+  /* 收起来：铺满整屏后底部这排会压住画面，收起来能看全景 */
+  .home-controls.bar-hidden{transform:translateY(115%);opacity:0;pointer-events:none}
+
+  /* 收起 / 展开底边那排按钮。它在 .home-controls 外面，
+     所以菜单收起来之后它还留在屏幕上，能再点开。 */
+  .bar-toggle{position:absolute;right:1.1em;bottom:1.0em;z-index:7;
+              background:rgba(38,35,30,.92);border:1px solid rgba(92,84,68,.85);
+              color:#efe9dd;border-radius:.55em;padding:.5em .85em;font-size:.78em;
+              font-family:inherit;cursor:pointer;line-height:1.2;white-space:nowrap;
+              transition:.15s}
+  .bar-toggle:hover{border-color:var(--green);color:#fff}
+  .bar-toggle.up{border-color:var(--green);color:#bcdba0}
 
   .stage-bar{display:flex;gap:.45em;flex-wrap:wrap;align-items:center}
   .sbtn{flex:0 0 auto;background:rgba(38,35,30,.88);border:1px solid rgba(92,84,68,.85);
@@ -142,26 +155,23 @@
   .modal-body::-webkit-scrollbar-thumb{background:#4a4438;border-radius:99px}
   .modal-body::-webkit-scrollbar-track{background:transparent}
 
-  /* 窄屏 / 竖屏：舞台在上，控件落到下方，避免遮住画面 */
+  /* 窄屏 / 竖屏：画面铺满整屏，控件浮在画面上 */
   @media (max-width:899px), (max-aspect-ratio:1/1){
-    .screen-home{position:static;background:transparent}
-    .stage-wrap{position:static;display:block}
+    /* 9:16 的手机要"全屏"，就只能在两种"不满"里选一个：
+       按宽度铺 → 高度只占屏幕四分之一，上下全黑；
+       按高度铺 → 高度撑满整屏，但 16:9 会横向溢出，得左右拖。
+       这里选后者（玩家要的全屏），溢出的部分用手指横向拖查看。
+       另外 stage 的浮层字号是 clamp(宽/62, 9, 20)，按宽度铺时会被下限卡在 9px，
+       徽章实际只有 7px —— 这也是按高度铺的另一个理由。 */
+    .screen-home{position:fixed;inset:0;background:#0b0a09}
+    .stage-wrap{position:absolute;inset:0;overflow-x:auto;overflow-y:hidden;
+                -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+    .stage-box{width:max-content;height:100%;max-height:none}
+    .stage-scroll{display:contents}
+    .stage{width:auto;height:100%;border-radius:0;box-shadow:none}
 
-    /* 手机上如果只按屏幕宽度铺 16:9，画面高度只剩屏幕的四分之一，
-       而且 stage 的浮层字号是 clamp(宽/62, 9, 20) —— 会被下限卡在 9px，小到看不清。
-       所以竖屏时改成**按屏幕高度定尺寸**，左右超出屏幕的部分用横向拖动查看。
-       一行字和画面都跟着变大，想横屏的玩家横过来就是正好铺满。 */
-    .stage-box{width:100%;max-height:none}
-    .stage-scroll{display:block;overflow-x:auto;overflow-y:hidden;
-                  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
-    .stage{width:auto;height:46vh;min-height:190px;border-radius:14px}
-
-    .home-controls{position:static;background:none;padding:0}
-    .stage-line{padding:1em 0 0;text-shadow:none}
-    .stage-sheet{position:static;transform:none;width:auto;margin-top:1em}
-    .stage-hint{display:none}
-    .modal-layer{position:fixed;padding:4%}
-    .modal{width:96%;max-height:88%}
+    /* 气泡跟着人物走，所以要留在画面里一起滚 —— 不能固定 */
+    .bubble{max-width:26%}
   }
 
   /* 竖屏提示：出现在屏幕正中，几秒后自己淡掉。
@@ -333,13 +343,18 @@
   .test-result.bad{color:var(--bad)}
   select.input{appearance:none}
 
-  /* 家：右上角设置齿轮 */
-  .stage-gear{position:absolute;right:1.1em;top:1.0em;width:2.1em;height:2.1em;
+  /* 家：右上角一组按钮（收起菜单 / 全屏 / 设置）。
+     用 flex 排，别让每个按钮各自算 right —— 那样加一个就要改一串坐标。 */
+  .stage-tools{position:absolute;right:1.1em;top:1.0em;display:flex;gap:.4em;z-index:6}
+  .stage-gear{position:static;width:2.1em;height:2.1em;
               border-radius:.5em;background:rgba(14,13,11,.55);backdrop-filter:blur(4px);
               border:1px solid rgba(92,84,68,.8);color:#e8e1d2;font-size:.85em;cursor:pointer;
               display:flex;align-items:center;justify-content:center;padding:0;line-height:1;
               font-family:inherit;transition:.15s}
   .stage-gear:hover{border-color:var(--green);color:#fff}
+  .stage-gear.w{width:auto;padding:0 .7em;white-space:nowrap}   /* 带字的按钮 */
+  /* 全屏/横屏按钮：只在手机窄屏显示（电脑上画面本来就铺满，不需要） */
+  .stage-fsbtn{display:none}
 
   .drop{background:var(--card2);border:1px solid var(--line);border-left:2px solid #3f3a30;
         border-radius:10px;padding:11px 13px}
@@ -434,6 +449,28 @@
   @media (min-width:760px){
     .tiles{grid-template-columns:repeat(5,1fr)}
     .album{grid-template-columns:repeat(6,1fr)}
+  }
+
+  /* ------------------------------------------------------------------
+     手机：把浮层钉在屏幕上（不跟着画面横向滚走）。
+     **这一块必须放在所有基础规则之后** —— .stage-gear / .stage-fsbtn /
+     .stage-countdown 的基础规则定义在上面更靠后的位置，同优先级下后面的赢，
+     写在前面会被它们覆盖掉（之前 .stage-gear 就因此跑到了屏幕外点不到）。
+     ------------------------------------------------------------------ */
+  @media (max-width:899px), (max-aspect-ratio:1/1){
+    .stage-top{position:fixed;left:.7em;top:.7em;max-width:92vw}
+    .stage-tools{position:fixed;right:.7em;top:.7em}
+    .stage-fsbtn{display:flex}
+    .stage-hint{position:fixed;left:50%;top:.75em;transform:translateX(-50%)}
+    .stage-countdown{position:fixed;left:50%;top:.75em;transform:translateX(-50%)}
+    .stage-sheet{position:fixed;left:50%;top:11%;transform:translateX(-50%);
+                 width:min(23em,88vw)}
+    .home-controls{position:fixed;left:0;right:0;bottom:0;
+                   background:linear-gradient(180deg,transparent,rgba(12,11,9,.72) 45%,rgba(12,11,9,.94));
+                   padding:2.4em 6.2em calc(.9em + env(safe-area-inset-bottom,0px)) .9em}
+    .bar-toggle{position:fixed;right:.7em;bottom:calc(.7em + env(safe-area-inset-bottom,0px))}
+    .modal-layer{position:fixed;padding:4%}
+    .modal{width:96%;max-height:88%}
   }
 </style>
 </head>
