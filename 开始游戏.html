@@ -204,6 +204,9 @@
   .chip small{color:var(--fg3);font-size:11.5px;line-height:1.5}
   .chip.on{border-color:var(--green);background:#242c1e;color:#dff0cd}
   .chip.on small{color:#9ab98a}
+  /* 田里已经有作物时，其余作物置灰（是 span 不是按钮，点了不响应） */
+  .chip.off{opacity:.42;cursor:default}
+  .chip.off small{color:var(--fg3)}
   .chips.regions .chip{min-width:21%;padding:9px 10px;font-size:13.5px}
 
   /* ---- 首次选家乡 ---- */

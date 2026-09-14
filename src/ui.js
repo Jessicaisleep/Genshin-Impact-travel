@@ -792,20 +792,31 @@
     var now = Date.now();
     var field = NT.data.fieldById(fieldId);
     var st = NT.farm.status(s, fieldId, now);
-    var body;
-    if (st.state === 'empty') {
-      var crops = NT.data.cropsForField(fieldId).map(function (c) {
-        return '<button class="chip" data-act="plant" data-arg="' + c.id + '">' + c.name +
-          '<small>' + fmtDur(c.growMs) + '</small></button>';
-      }).join('');
-      body = '<div class="label">种什么？</div><div class="chips">' + crops + '</div>';
-    } else {
-      body = '<div class="grow">' +
-        '<div class="grow-name">' + st.crop.name + '</div>' +
-        '<div class="bar"><i style="width:' + Math.round(st.progress * 100) + '%"></i></div>' +
-        '<div class="grow-sub">' + (st.state === 'ready' ? '已经熟了' : '还要 ' + U.humanMs(st.remainMs)) + '</div>' +
-        (st.state === 'ready' ? '<button class="sbtn go" data-act="harvest" data-arg="' + fieldId + '">收获</button>' : '') +
-        '</div>';
+    var busy = st.state !== 'empty';
+
+    // 不管种没种，都把这块地能种的作物列出来 ——
+    // 已经种下的那件标上「已种植 · 距成熟 X小时X分」，其余的先置灰。
+    var crops = NT.data.cropsForField(fieldId).map(function (c) {
+      var mine = busy && st.crop && st.crop.id === c.id;
+      var cls = 'chip' + (mine ? ' on' : (busy ? ' off' : ''));
+      var sub = mine
+        ? (st.state === 'ready' ? '已成熟 · 可以收了' : '已种植 · 距成熟 ' + U.humanMs(st.remainMs))
+        : fmtDur(c.growMs);
+      if (busy && !mine) {
+        return '<span class="' + cls + '">' + c.name + '<small>' + sub + '</small></span>';
+      }
+      return '<button class="' + cls + '" data-act="plant" data-arg="' + c.id + '">' +
+        c.name + '<small>' + sub + '</small></button>';
+    }).join('');
+
+    var body = '<div class="label">种什么？</div><div class="chips">' + crops + '</div>';
+    if (busy) {
+      body += '<div class="bar" style="margin-top:.7em">' +
+        '<i style="width:' + Math.round(st.progress * 100) + '%"></i></div>';
+      if (st.state === 'ready') {
+        body += '<button class="sbtn go" style="margin-top:.7em" data-act="harvest" data-arg="' +
+          fieldId + '">收获</button>';
+      }
     }
     return '<div class="stage-sheet">' +
       '<div class="sheet-head"><b>' + field.name + '</b>' +
@@ -1014,13 +1025,18 @@
       return out;
     }
 
+    /* 这里以前有个 drawFieldSigns —— 在田里插一块木牌写"种了什么 / 还有多久熟"。
+       试过几轮都不行：田在画面里是斜的平行四边形，牌子位置很难贴准，
+       而且牌子本身会跟走到田边的人物重叠。点田弹出的面板里已经有这些信息了，
+       所以整块删掉，不再画。 */
+
     /** 走路时脚下的小尘土（左右脚各一下） */
     var dust = [];
     function spawnDust(x, y, dir) {
       dust.push({ x: x, y: y, life: 0, max: 0.5, dir: dir });
     }
 
-    function drawNahida(t) {
+  function drawNahida(t) {
       // dt 必须夹在 [0, 0.1]：标签页切回来时 rAF 时间戳会跳，负数 dt 会让动画倒退
       var dt = U.clamp((t - anim.last) / 1000, 0, 0.1);
       anim.last = t;
@@ -1322,11 +1338,18 @@
 
     // --- 点击：先判田，再判她 ---
     stage.onclick = function (ev) {
+      // 面板就在 .stage 里面，点面板上的按钮时事件会先冒泡到这里。
+      // 以前这里无条件把 fieldSheet 清掉，于是紧接着执行的 'plant' 动作
+      // 拿到的是 null 地块，一律报「这块地种不了这个」—— 表现就是"点哪个都种不了"。
+      // 所以面板里的点击直接放过，交给它自己的处理器。
+      var t = ev.target;
+      if (t && t.closest && t.closest('.stage-sheet')) return;
+
       var r = stage.getBoundingClientRect();
       var nx = (ev.clientX - r.left) / r.width;
       var ny = (ev.clientY - r.top) / r.height;
 
-      if (app.fieldSheet) { app.fieldSheet = null; app.render(); return; }  // 面板开着就先关
+      if (app.fieldSheet) { app.fieldSheet = null; app.render(); return; }  // 点画面其它地方就关掉面板
 
       // 点击区域按家-全景.png 里那四小块田的实际位置量出来的
       // （上面两块 = 旱田，下面两块 = 水田）
