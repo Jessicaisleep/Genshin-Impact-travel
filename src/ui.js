@@ -105,6 +105,67 @@
       if (!el) return;
       app.action(el.getAttribute('data-act'), el.getAttribute('data-arg'));
     });
+
+    /**
+     * 视口变了要重画。
+     *
+     * 画布是按"挂载那一刻"的尺寸画的，横竖屏切换、进全屏、拉窗口之后
+     * 尺寸就不对了 —— 轻则拉伸，重则整块是空的（手机上进全屏看到一片绿就是这个）。
+     * resize 在手机上会因为地址栏收起/展开频繁触发，所以先比一下尺寸，
+     * 真的变了才重排，并且加个防抖。
+     */
+    var lastW = -1, lastH = -1;
+    var onViewportChange = function () {
+      var st = document.getElementById('stage');
+      if (!st) return;
+      var r = st.getBoundingClientRect();
+      // 第一次只记尺寸，不重排 —— 否则刚进页面就白白 render 一次，
+      // 会把"建议横屏"那个只出一次的提示立刻顶掉
+      if (lastW < 0) { lastW = r.width; lastH = r.height; return; }
+      if (Math.abs(r.width - lastW) < 2 && Math.abs(r.height - lastH) < 2) return;
+      lastW = r.width; lastH = r.height;
+      clearTimeout(app._relayoutTimer);
+      app._relayoutTimer = setTimeout(function () {
+        if (app.screen === 'home' && !app.modal) app.render();
+      }, 160);
+    };
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
+    document.addEventListener('fullscreenchange', onViewportChange);
+    document.addEventListener('webkitfullscreenchange', onViewportChange);
+  };
+
+  /**
+   * 竖屏提示「建议横屏」—— 24 小时只出一次。
+   *
+   * 之前是写在 render 的 HTML 里，每 render 一次就重新插一个元素、CSS 动画跟着重播，
+   * 结果每点一个按钮它就冒出来一次。
+   * 但只加时间戳还不够 —— render 在启动时会被调用不止一次，元素刚插上就被下一次
+   * render 顶掉了。所以干脆不走 render：这里直接往 body 塞一个，自己定时删。
+   */
+  var ROTATE_HINT_GAP = 24 * 60 * 60 * 1000;
+  app.maybeShowRotateHint = function () {
+    var s = app.save;
+    if (!s.settings) s.settings = {};
+    var now = Date.now();
+    var last = s.settings.rotateHintAt || 0;
+    if (last && now - last < ROTATE_HINT_GAP) return false;
+    s.settings.rotateHintAt = now;
+    NT.store.save(s);
+
+    if (!window.matchMedia || !window.matchMedia('(max-width:899px) and (orientation:portrait)').matches) {
+      return false;                      // 横屏 / 电脑上不显示，但时间戳已经记下
+    }
+    var d = document.createElement('div');
+    d.className = 'rotate-hint show';
+    d.textContent = '建议横屏';
+    document.body.appendChild(d);
+    app._rotateHintEl = d;
+    setTimeout(function () {
+      if (d.parentNode) d.parentNode.removeChild(d);
+      if (app._rotateHintEl === d) app._rotateHintEl = null;
+    }, 7000);
+    return true;
   };
 
   /** 检查有没有新解锁的成就，有就弹提示 + 响一声 */
@@ -699,8 +760,7 @@
       (app.fieldSheet ? app.viewFieldSheet(app.fieldSheet) : '') +
       '</div>' +
       '</div>' +                       // 收掉 .stage-scroll
-      // 竖屏时出现在屏幕正中，几秒后自己淡掉，不挡操作也不强制旋转
-      '<div class="rotate-hint">建议横屏</div>' +
+      // 「建议横屏」不写在这里 —— 它不参与 render，由 maybeShowRotateHint 单独插
       '<div class="home-controls' + (app.barHidden ? ' bar-hidden' : '') + '">' +
       '<div class="stage-bar">' +
       // 她出门了就把按钮换成"旅途中"，点它打开旅途面板，而不是又送一次
@@ -840,6 +900,23 @@
   app.mountHome = function () {
     var bg = $('world-bg'), fg = $('world-fg'), stage = $('stage');
     if (!bg || !fg || !stage) return;
+
+    // 手机上画面比屏幕宽、靠 .stage-wrap 横向拖。render 会重建 DOM，
+    // 滚动位置会被清零 —— 手感就是"怎么滑都滑不过去"。所以位置要跨渲染保住。
+    // 注意：mountHome 是在 innerHTML 之后同步跑的，这时还没布局，
+    // 直接设 scrollLeft 会被丢掉，所以下一帧再补一次。
+    var wrap = document.querySelector('.stage-wrap');
+    if (wrap) {
+      wrap.onscroll = function () { app._stageScroll = wrap.scrollLeft; };
+      var wantX = app._stageScroll || 0;
+      if (wantX) {
+        wrap.scrollLeft = wantX;
+        requestAnimationFrame(function () { wrap.scrollLeft = wantX; });
+      }
+    }
+
+    // 竖屏提示只在本次会话里尝试一次（它自己按 24 小时判断要不要真显示）
+    if (!app._rotateHintTried) { app._rotateHintTried = true; app.maybeShowRotateHint(); }
 
     // --- 画布按实际显示尺寸渲染，保证清晰；比例全部是相对的，所以尺寸可以随便换 ---
     var rect = stage.getBoundingClientRect();
@@ -1888,7 +1965,7 @@
       '<div class="row"><button class="btn-ghost" data-act="export">导出存档</button>' +
       '<button class="btn-ghost danger" data-act="reset">清空全部</button></div></div>' +
       '<div class="group about"><div class="label">关于</div>' +
-      '<div class="hint">非商业同人作品。玩法参考《旅行青蛙》，角色来自《原神》，版权归米哈游所有。' +
+      '<div class="hint">非商业同人作品。角色来自《原神》，版权归米哈游所有。' +
       '本项目仅供学习交流，不作任何商业用途。</div></div></div>';
   };
 
